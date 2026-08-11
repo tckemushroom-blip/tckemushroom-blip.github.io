@@ -817,62 +817,60 @@ syncDetailPageFromHash();
   var backBtn = document.getElementById('product-back-btn');
   var section = document.getElementById('detail-product');
   var figure  = document.getElementById('qihuamingcao-figure');
+  var visual  = document.getElementById('qihuamingcao-visual');
   var expanded  = false;
   var animating = false;
-  var figAnim   = null;
+  var visAnim   = null;
 
   function wait(ms) { return new Promise(function(r){ setTimeout(r, ms); }); }
 
-  function getFigureRect() {
-    return figure ? figure.getBoundingClientRect() : null;
-  }
+  // 動畫：visual 從 figure 的當前位置出發，向右橫移到貼齊右側
+  // opening=true: 展開; opening=false: 收合
+  function animateVisual(opening) {
+    if (!visual) return Promise.resolve();
+    if (visAnim) { visAnim.cancel(); visAnim = null; }
 
-  // 計算展開終態：貼齊視窗右側，高度撐滿視窗
-  function getExpandedStyle() {
     var vw = window.innerWidth;
     var vh = window.innerHeight;
-    var rect = getFigureRect();
-    if (!rect) return null;
-    // 終態 translateX 讓圖片左邊緣 = vw - vh*aspect，右邊緣 = vw
-    // 簡單做法：移到 right:0，寬度撐到 vh（正方形截圖）
-    var targetW = vh;
-    var targetLeft = vw - targetW;
-    var scaleX = targetW / rect.width;
-    var scaleY = vh / rect.height;
-    var tx = targetLeft - rect.left;
-    var ty = 0 - rect.top;
-    return { tx: tx, ty: ty, scaleX: scaleX, scaleY: scaleY };
-  }
+    var visualW = visual.offsetWidth;   // = 58vw (CSS)
+    var visualH = visual.offsetHeight;  // = 100vh (CSS)
 
-  function animateFigure(opening) {
-    if (!figure) return Promise.resolve();
-    if (figAnim) { figAnim.cancel(); figAnim = null; }
-    var e = getExpandedStyle();
-    if (!e) return Promise.resolve();
-    var transformTo   = 'translate(' + e.tx + 'px,' + e.ty + 'px) scale(' + e.scaleX + ',' + e.scaleY + ')';
-    var transformFrom = 'translate(0px,0px) scale(1,1)';
-    var kfOpen  = [
-      { transform: transformFrom, clipPath: 'inset(0 100% 0 0)' },
-      { transform: transformTo,   clipPath: 'inset(0 0 0 0)' }
-    ];
-    var kfClose = [
-      { transform: transformTo,   clipPath: 'inset(0 0 0 0)' },
-      { transform: transformFrom, clipPath: 'inset(0 100% 0 0)' }
-    ];
-    figAnim = figure.animate(opening ? kfOpen : kfClose, {
+    // figure 在 viewport 中的位置
+    var rect = figure ? figure.getBoundingClientRect() : null;
+    if (!rect) return Promise.resolve();
+
+    // 起始：visual 縮放 + 位移到 figure 的大小與位置
+    var scaleX0 = rect.width  / visualW;
+    var scaleY0 = rect.height / visualH;
+    var tx0 = rect.left - (vw - visualW);  // visual 預設 right:0，left = vw-visualW
+    var ty0 = rect.top;
+
+    var fromKF = {
+      transform: 'translate(' + tx0 + 'px,' + ty0 + 'px) scale(' + scaleX0 + ',' + scaleY0 + ')',
+      clipPath: 'inset(0 100% 0 0)'
+    };
+    var toKF = {
+      transform: 'translate(0px,0px) scale(1,1)',
+      clipPath: 'inset(0 0 0 0)'
+    };
+
+    visAnim = visual.animate(opening ? [fromKF, toKF] : [toKF, fromKF], {
       duration: 900,
       easing: 'cubic-bezier(0.16,1,0.3,1)',
       fill: 'forwards'
     });
-    return figAnim.finished.catch(function(){});
+    return visAnim.finished.catch(function(){});
   }
 
   async function openPanel(){
     if (expanded || animating) return;
     animating = true;
     expanded = true;
+    // 隱藏原始 figure（visual 會覆蓋在上面動畫）
+    if (figure) figure.style.opacity = '0';
     section.classList.add('product-expanded');
-    await animateFigure(true);
+    if (visual) visual.setAttribute('aria-hidden', 'false');
+    await animateVisual(true);
     panel.classList.add('is-open');
     panel.setAttribute('aria-hidden','false');
     animating = false;
@@ -885,16 +883,18 @@ syncDetailPageFromHash();
     panel.classList.remove('is-open');
     panel.setAttribute('aria-hidden','true');
     if (immediate) {
-      if (figAnim) { figAnim.cancel(); figAnim = null; }
-      if (figure) figure.style.transform = '';
+      if (visAnim) { visAnim.cancel(); visAnim = null; }
+      if (visual) { visual.style.transform = ''; visual.style.clipPath = ''; visual.setAttribute('aria-hidden','true'); }
+      if (figure) figure.style.opacity = '';
       section.classList.remove('product-expanded', 'product-collapsing');
       animating = false;
       return;
     }
     section.classList.remove('product-expanded');
     section.classList.add('product-collapsing');
-    await animateFigure(false);
-    if (figure) { figure.style.transform = ''; figure.style.clipPath = ''; }
+    await animateVisual(false);
+    if (visual) { visual.style.transform = ''; visual.style.clipPath = ''; visual.setAttribute('aria-hidden','true'); }
+    if (figure) figure.style.opacity = '';
     await wait(280);
     section.classList.remove('product-collapsing');
     animating = false;
