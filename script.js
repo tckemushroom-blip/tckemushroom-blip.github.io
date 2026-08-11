@@ -847,7 +847,7 @@ syncDetailPageFromHash();
 
     var fromKF = {
       transform: 'translate(' + tx0 + 'px,' + ty0 + 'px) scale(' + scaleX0 + ',' + scaleY0 + ')',
-      clipPath: 'inset(0 100% 0 0)'
+      clipPath: 'inset(0 0 0 0)'
     };
     var toKF = {
       transform: 'translate(0px,0px) scale(1,1)',
@@ -868,6 +868,7 @@ syncDetailPageFromHash();
     expanded = true;
     // 隱藏原始 figure（visual 會覆蓋在上面動畫）
     if (figure) figure.style.opacity = '0';
+    if (visual) { visual.style.clipPath = 'inset(0 0 0 0)'; }
     section.classList.add('product-expanded');
     if (visual) visual.setAttribute('aria-hidden', 'false');
     await animateVisual(true);
