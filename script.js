@@ -829,53 +829,30 @@ syncDetailPageFromHash();
     return figure ? figure.getBoundingClientRect() : null;
   }
 
+  function getVisualStartX() {
+    const figure = getFigureRect();
+    if (!figure) return 0;
+    const vw = window.innerWidth;
+    const visualWidth = visual ? visual.offsetWidth : vw * 0.58;
+    return figure.left - (vw - visualWidth);
+  }
+
   function animateVisual(opening) {
     if (!visual) return Promise.resolve();
-    visual.style.transform = opening ? 'translateX(56px)' : 'translateX(0px)';
-    const keyframes = opening
-      ? [
-          { clipPath: 'inset(0 100% 0 0)', transform: 'translateX(56px)' },
-          { clipPath: 'inset(0 0 0 0)', transform: 'translateX(0px)' }
-        ]
-      : [
-          { clipPath: 'inset(0 0 0 0)', transform: 'translateX(0px)' },
-          { clipPath: 'inset(0 100% 0 0)', transform: 'translateX(56px)' }
-        ];
-    const animation = visual.animate(keyframes, {
-      duration: 1000,
+    var shiftX = getVisualStartX();
+    var kfFrom = { clipPath: 'inset(0 100% 0 0)', transform: 'translateX(' + shiftX + 'px)' };
+    var kfTo   = { clipPath: 'inset(0 0 0 0)',    transform: 'translateX(0px)' };
+    var keyframes = opening ? [kfFrom, kfTo] : [kfTo, kfFrom];
+    var animation = visual.animate(keyframes, {
+      duration: 900,
       easing: 'cubic-bezier(0.16,1,0.3,1)',
       fill: 'forwards'
     });
-    return animation.finished.catch(() => {});
+    return animation.finished.catch(function(){});
   }
 
   function animateVisualBackToCard() {
-    if (!visual) return Promise.resolve();
-    const target = getFigureRect();
-    if (!target) return Promise.resolve();
-
-    const startRect = visual.getBoundingClientRect();
-    const scaleX = target.width / startRect.width;
-    const scaleY = target.height / startRect.height;
-    const translateX = target.left - startRect.left;
-    const translateY = target.top - startRect.top;
-
-    const animation = visual.animate([
-      {
-        transform: 'translate(0px, 0px) scale(1, 1)',
-        clipPath: 'inset(0 0 0 0)'
-      },
-      {
-        transform: `translate(${translateX}px, ${translateY}px) scale(${scaleX}, ${scaleY})`,
-        clipPath: 'inset(0 22% 0 0)'
-      }
-    ], {
-      duration: 1000,
-      easing: 'cubic-bezier(0.16,1,0.3,1)',
-      fill: 'forwards'
-    });
-
-    return animation.finished.catch(() => {});
+    return animateVisual(false);
   }
 
   async function openPanel(){
@@ -900,7 +877,7 @@ syncDetailPageFromHash();
     if (immediate) {
       section.classList.remove('product-expanded', 'product-collapsing');
       if (visual) {
-        visual.style.transform = 'translateX(56px)';
+        visual.style.transform = '';
         visual.style.clipPath = 'inset(0 100% 0 0)';
         visual.setAttribute('aria-hidden', 'true');
       }
@@ -910,8 +887,8 @@ syncDetailPageFromHash();
     section.classList.remove('product-expanded');
     section.classList.add('product-collapsing');
     await animateVisualBackToCard();
-    visual.style.transform = 'translateX(56px)';
-    await animateVisual(false);
+
+
     if (visual) visual.setAttribute('aria-hidden', 'true');
     await wait(280);
     section.classList.remove('product-collapsing');
