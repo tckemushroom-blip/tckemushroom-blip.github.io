@@ -812,47 +812,59 @@ syncDetailPageFromHash();
 
 // 奇花明草展開面板
 (function(){
-  const btn = document.getElementById('qihuamingcao-btn');
-  const panel = document.getElementById('qihuamingcao-panel');
-  const backBtn = document.getElementById('product-back-btn');
-  const section = document.getElementById('detail-product');
-  const visual = document.getElementById('qihuamingcao-visual');
-  let expanded = false;
-  let animating = false;
+  var btn     = document.getElementById('qihuamingcao-btn');
+  var panel   = document.getElementById('qihuamingcao-panel');
+  var backBtn = document.getElementById('product-back-btn');
+  var section = document.getElementById('detail-product');
+  var figure  = document.getElementById('qihuamingcao-figure');
+  var expanded  = false;
+  var animating = false;
+  var figAnim   = null;
 
-  function wait(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
+  function wait(ms) { return new Promise(function(r){ setTimeout(r, ms); }); }
 
   function getFigureRect() {
-    const figure = section ? section.querySelector('.detail-page-media--expandable') : null;
     return figure ? figure.getBoundingClientRect() : null;
   }
 
-  function getVisualStartX() {
-    const figure = getFigureRect();
-    if (!figure) return 0;
-    const vw = window.innerWidth;
-    const visualWidth = visual ? visual.offsetWidth : vw * 0.58;
-    return figure.left - (vw - visualWidth);
+  // 計算展開終態：貼齊視窗右側，高度撐滿視窗
+  function getExpandedStyle() {
+    var vw = window.innerWidth;
+    var vh = window.innerHeight;
+    var rect = getFigureRect();
+    if (!rect) return null;
+    // 終態 translateX 讓圖片左邊緣 = vw - vh*aspect，右邊緣 = vw
+    // 簡單做法：移到 right:0，寬度撐到 vh（正方形截圖）
+    var targetW = vh;
+    var targetLeft = vw - targetW;
+    var scaleX = targetW / rect.width;
+    var scaleY = vh / rect.height;
+    var tx = targetLeft - rect.left;
+    var ty = 0 - rect.top;
+    return { tx: tx, ty: ty, scaleX: scaleX, scaleY: scaleY };
   }
 
-  function animateVisual(opening) {
-    if (!visual) return Promise.resolve();
-    var shiftX = getVisualStartX();
-    var kfFrom = { clipPath: 'inset(0 100% 0 0)', transform: 'translateX(' + shiftX + 'px)' };
-    var kfTo   = { clipPath: 'inset(0 0 0 0)',    transform: 'translateX(0px)' };
-    var keyframes = opening ? [kfFrom, kfTo] : [kfTo, kfFrom];
-    var animation = visual.animate(keyframes, {
+  function animateFigure(opening) {
+    if (!figure) return Promise.resolve();
+    if (figAnim) { figAnim.cancel(); figAnim = null; }
+    var e = getExpandedStyle();
+    if (!e) return Promise.resolve();
+    var transformTo   = 'translate(' + e.tx + 'px,' + e.ty + 'px) scale(' + e.scaleX + ',' + e.scaleY + ')';
+    var transformFrom = 'translate(0px,0px) scale(1,1)';
+    var kfOpen  = [
+      { transform: transformFrom, clipPath: 'inset(0 100% 0 0)' },
+      { transform: transformTo,   clipPath: 'inset(0 0 0 0)' }
+    ];
+    var kfClose = [
+      { transform: transformTo,   clipPath: 'inset(0 0 0 0)' },
+      { transform: transformFrom, clipPath: 'inset(0 100% 0 0)' }
+    ];
+    figAnim = figure.animate(opening ? kfOpen : kfClose, {
       duration: 900,
       easing: 'cubic-bezier(0.16,1,0.3,1)',
       fill: 'forwards'
     });
-    return animation.finished.catch(function(){});
-  }
-
-  function animateVisualBackToCard() {
-    return animateVisual(false);
+    return figAnim.finished.catch(function(){});
   }
 
   async function openPanel(){
@@ -860,55 +872,45 @@ syncDetailPageFromHash();
     animating = true;
     expanded = true;
     section.classList.add('product-expanded');
-    if (visual) visual.setAttribute('aria-hidden', 'false');
-    await animateVisual(true);
+    await animateFigure(true);
     panel.classList.add('is-open');
     panel.setAttribute('aria-hidden','false');
     animating = false;
   }
 
-  async function closePanel(immediate = false){
+  async function closePanel(immediate){
     if ((!expanded && !section.classList.contains('product-collapsing')) || animating) return;
     animating = true;
     expanded = false;
     panel.classList.remove('is-open');
-    panel.classList.remove('is-open');
     panel.setAttribute('aria-hidden','true');
     if (immediate) {
+      if (figAnim) { figAnim.cancel(); figAnim = null; }
+      if (figure) figure.style.transform = '';
       section.classList.remove('product-expanded', 'product-collapsing');
-      if (visual) {
-        visual.style.transform = '';
-        visual.style.clipPath = 'inset(0 100% 0 0)';
-        visual.setAttribute('aria-hidden', 'true');
-      }
       animating = false;
       return;
     }
     section.classList.remove('product-expanded');
     section.classList.add('product-collapsing');
-    await animateVisualBackToCard();
-
-
-    if (visual) visual.setAttribute('aria-hidden', 'true');
+    await animateFigure(false);
+    if (figure) { figure.style.transform = ''; figure.style.clipPath = ''; }
     await wait(280);
     section.classList.remove('product-collapsing');
     animating = false;
   }
 
-  // 暴露給外部呼叫（離開頁面時自動關閉）
   window.__closeQihuaPanel = closePanel;
 
-  if(btn) btn.addEventListener('click', openPanel);
+  if (btn) btn.addEventListener('click', openPanel);
 
-  // 中間返回按鈕：展開時關閉面板，否則正常觸發 data-close-detail
-  if(backBtn){
-    backBtn.addEventListener('click', (e) => {
-      if(expanded){
+  if (backBtn){
+    backBtn.addEventListener('click', function(e){
+      if (expanded){
         e.stopPropagation();
         e.preventDefault();
         closePanel();
       }
-      // 若未展開，讓事件冒泡到全域的 data-close-detail 處理器
     });
   }
 })();

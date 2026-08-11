@@ -473,12 +473,14 @@ body.detail-returning .detail-page::before{
   cursor:pointer;
   position:relative;
 }
+/* 展開/收合時：figure 變成動畫層（fixed），不隱藏 */
 #detail-product.product-expanded .detail-page-media--expandable,
 #detail-product.product-collapsing .detail-page-media--expandable{
-  opacity:0;
-}
-#detail-product.product-collapsing .detail-page-media--expandable{
-  opacity:1;
+  position:fixed;
+  z-index:10;
+  pointer-events:none;
+  overflow:hidden;
+  transform-origin:top left;
 }
 .detail-expand-btn{
   position:absolute;
